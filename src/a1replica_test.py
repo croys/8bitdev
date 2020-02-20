@@ -1,4 +1,4 @@
-from    testmc.m6502 import  Machine, Registers as R
+from    testmc.m6502 import  Machine, Registers as R, Instructions as I
 import  pytest
 
 
@@ -25,3 +25,20 @@ def test_humdly(M, x, cycles):
 def test_humdlymax(M):
     M.call(M.symtab.loopdlymax, R(x=3), maxops=1000000000)
     assert 457987 == M.mpu.processorCycles  # about half a second at 1 MHz
+
+####################################################################
+#   PIA routines
+
+def test_countup(M):
+    S = M.symtab
+
+    #   NOP out the delay call
+    jsrloc = S.countup + 0x0B
+    assert [I.JSR, S.loopdly & 0xFF, S.loopdly >> 8] == M.bytes(jsrloc, 3)
+    M.deposit(jsrloc, [I.NOP]*3)
+
+    #   One way to debug this would be to stop every time we hit the
+    #   following symbol, but the test framework currently doesn't
+    #   support that.
+    loop = S.sym('countup.loop')    # could stop here....
+    M.call(S.countup, stopsat=[loop])

@@ -394,3 +394,15 @@ def test_Machine_call_aborts(M):
     with pytest.raises(M.Abort):
         M.call(0x570)
     assert R(0x572) == M.regs
+
+def test_Machine_call_stopsat(M):
+    M.deposit(0x600, [I.NOP]*8 + [I.RTS])
+    stops = [0x603, 0x607]
+    with pytest.raises(M.Stop):
+        M.call(0x600, stopsat=stops)
+        assert R(0x603) == M.regs
+    with pytest.raises(M.Stop):
+        M.call(None, stopsat=stops)
+        assert R(0x603) == M.regs
+    assert R(0x572) == M.regs
+    assert 0
