@@ -354,18 +354,25 @@ class file_reader( object ):
         self.baud600_decoder = decoder( 8, 4 )
         self.baud2400_decoder = decoder( 2, 1 )
     
-    def read_file_header( self, edges, i_next ):
-        # Read the leader
+    # Read a number of space edges up to the mark for the start-bit of the
+    # first byte
+    def read_leader( self, edges, i_next ):
         i_next = next_space( edges, i_next, 100 )
         debug( 'Leader cycles detected at %d - %fs (%s)'
             % ( i_next, edges[ i_next ][ 0 ], str( edges[ i_next ][ 1 ]) ) )
 
         # Read up to the start bit of the first byte
         ( i_next, _ ) = eat_until_mark( edges, i_next )
-        debug( 'Start of header at %d - %fs (%s)'
+        debug( 'Start of data at %d - %fs (%s)'
             % ( i_next, edges[ i_next ][ 0 ], edges[ i_next ][ 1 ] ) )
+        
+        return i_next
 
-        ( i_next, header_bytes ) = self.baud600_decoder.eat_bytes( edges, i_next, 33 )
+    def read_file_header( self, edges, i_next ):
+        i_next = self.read_leader( edges, i_next )
+
+        ( i_next, header_bytes ) = self.baud600_decoder.eat_bytes(
+                                    edges, i_next, 33 )
         #debug( header_bytes )
         hdr = file_header( header_bytes )
         debug( hdr )
@@ -374,17 +381,8 @@ class file_reader( object ):
         return (i_next, hdr)
 
     def read_block( self, bit_decoder, edges, i_next ):
-        # Read the leader
-        i_next = next_space( edges, i_next, 0 )
-        debug( 'Next space i_next: %d ( %f )'
-                % ( i_next, edges[ i_next ][ 0 ] ) )
-
-        # i_next = next_space( edges, i_next, 100 )
-        # debug( 'Leader cycles detected at %d - %fs (%s)'
-        #   % ( i_next, edges[ i_next ][ 0 ], str( edges[ i_next ][ 1 ]) ) )
-        ( i_next, n_spaces ) = eat_until_mark( edges, i_next )
-        debug( 'read %d space edges, i_next: %d( %f )'
-                % ( n_spaces, i_next, edges[ i_next ][ 0 ] ) )
+        # # Read the leader
+        i_next = self.read_leader( edges, i_next )
 
         # Read the block header
         (i_next, block_header_bytes) = bit_decoder.eat_bytes(edges, i_next, 6)
