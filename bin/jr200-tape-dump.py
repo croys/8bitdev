@@ -27,13 +27,10 @@ from pydub import AudioSegment
 
 # TODO
 #
-# FIX bit prefix/suffix - done
-# refactor into decode objects - done
-# use array/bytearray as appropriate
 # take out former code to plot histogram of cycle lengths
 #   - useful for investigating other formats
 # base cutoff on mean and stddev, instead of/in addition to max/min
-# make cutoff a parameter
+# make cutoff a parameter & command line option (?)
 # gracefully deal with end of samples and try to read multiple files
 #
 # Generate file header and blocks from cjr file format
@@ -431,6 +428,32 @@ class file_reader( object ):
     # FIXME: read_files - return [ ( file_header, [block] ) ]
 
 
+# Check checksums are valid
+#
+# blocks : [ block ]
+# ->
+# Bool
+def checksums_valid( blocks ):
+    for block in blocks:
+        chksum = block.calc_checksum()
+        if ( block.checksum != chksum ):
+            err('Block %d has checksum %d, calculated checksum is %d'
+                % (block.header.block_number, block.checksum, chksum))
+            return False
+    return True
+
+# Convert blocks to bytes
+#
+# blocks : [ block ]
+# ->
+# bytearray
+def blocks_to_bytes( blocks ):
+    res = bytearray()
+    for block in blocks:
+        res.extend( block.data )
+    return res
+
+
 ################################################################################
 
 if len( sys.argv ) < 3:
@@ -442,6 +465,9 @@ fname = sys.argv[ 1 ]
 outfile = sys.argv[ 2 ]
 
 audio = AudioSegment.from_file( fname )
+rate = audio.frame_rate
+sample_dur = 1.0 / rate
+samples = audio.get_array_of_samples()
 
 info( 'Input file: %s' % fname )
 info( 'Channels: %d ' % audio.channels )
@@ -449,17 +475,10 @@ info( 'Sample width: %d' % audio.sample_width )
 info( 'Frame rate: %d' % audio.frame_rate )
 info( 'Max: %d' % audio.max )
 info( 'Duration: %d' % audio.duration_seconds )
-
-channels = audio.channels
-rate = audio.frame_rate
-data = audio.get_array_of_samples()
-debug( 'Samples: %d' % len( data ) )
-
-levels = samples_to_levels( data )
-
-sample_dur = 1.0 / rate
 debug( 'Sample duration: %f microseconds' % ( 1000000 * sample_dur ) )
+debug( 'Samples: %d' % len( samples ) )
 
+levels = samples_to_levels( samples )
 edges = levels_to_timed_edges( levels, sample_dur )
 
 info( 'Number of edges: %d ' % len( edges ) )
@@ -475,25 +494,12 @@ info( 'Max cycle length: %f' % max( cycle_lengths ) )
 freader = file_reader()
 ( i_next, ( file_hdr, blocks ) ) = freader.read_file( edges, 0 )
 
-
-# Check checksums are valid
-for block in blocks:
-    chksum = block.calc_checksum()
-    if ( block.checksum != chksum ):
-        err('Block %d has checksum %d, calculated checksum is %d'
-            % (block.header.block_number, block.checksum, chksum))
-
-
-# FIXME: Explicitly generate array of bytes - easier to test
-
-info( 'Ouput file: %s' % outfile )
-
-f = open( outfile, 'w+b' )
-
-for block in blocks:
-    #info( 'Writing %d bytes' % len( block.data ) )
-    bin = bytearray( block.data )
-    f.write( bin )
-f.close()
-
-sys.exit( 0 )
+if checksums_valid( blocks ):
+    data = blocks_to_bytes( blocks )
+    info( 'Ouput file: %s' % outfile )
+    f = open( outfile, 'w+b' )
+    f.write( data )
+    f.close()
+    sys.exit( 0 )
+else:
+    sys.exit( 1 )
