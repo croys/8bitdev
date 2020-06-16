@@ -6,7 +6,9 @@
 from __future__ import print_function
 import sys
 from pydub import AudioSegment
-from jr200_tape import *
+from jr200_tape import info, debug, err, samples_to_levels
+from jr200_tape import levels_to_timed_edges, file_reader
+from jr200_tape import checksums_valid, blocks_to_bytes
 
 if len( sys.argv ) < 3:
     err('Dumps binary data from JR-200 cassette output\n' +
